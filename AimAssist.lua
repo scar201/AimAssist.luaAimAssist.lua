@@ -1,119 +1,392 @@
--- Compact Aim Assist Script
-local P,U,R,C = game:GetService("Players"),game:GetService("UserInputService"),game:GetService("RunService"),workspace.CurrentCamera
-local L,M = P.LocalPlayer,L:GetMouse()
-local S = {E=false,F=80,Sm=0.3,T="Head",SF=true,TC=true}
-local G,T,Con,FOV
+-- Fixed Aim Assist Script - Choose the version that works for you
 
--- Create GUI
-local function CG()
-    local sg = Instance.new("ScreenGui") sg.Name="AimGUI" sg.Parent=L:WaitForChild("PlayerGui") sg.ResetOnSpawn=false
-    local mf = Instance.new("Frame") mf.Size=UDim2.new(0,250,0,200) mf.Position=UDim2.new(0,50,0,50) mf.BackgroundColor3=Color3.fromRGB(30,30,30) mf.Parent=sg
-    local c = Instance.new("UICorner") c.CornerRadius=UDim.new(0,8) c.Parent=mf
+-- VERSION 1: Basic Version (Most Compatible)
+--[[
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+local enabled = false
+local fov = 100
+local smoothness = 0.2
+local connection
+
+-- Simple GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AimGUI"
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 200, 0, 100)
+Frame.Position = UDim2.new(0, 100, 0, 100)
+Frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Frame.Parent = ScreenGui
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(1, -10, 0, 40)
+ToggleButton.Position = UDim2.new(0, 5, 0, 5)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ToggleButton.Text = "Aim Assist: OFF"
+ToggleButton.TextColor3 = Color3.white
+ToggleButton.TextScaled = true
+ToggleButton.Parent = Frame
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Size = UDim2.new(1, -10, 0, 30)
+StatusLabel.Position = UDim2.new(0, 5, 0, 50)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Press to toggle"
+StatusLabel.TextColor3 = Color3.white
+StatusLabel.TextScaled = true
+StatusLabel.Parent = Frame
+
+-- Get closest player
+local function getClosestPlayer()
+    local closest = nil
+    local shortestDistance = math.huge
     
-    local tb = Instance.new("Frame") tb.Size=UDim2.new(1,0,0,25) tb.BackgroundColor3=Color3.fromRGB(50,50,50) tb.Parent=mf
-    local tc = Instance.new("UICorner") tc.CornerRadius=UDim.new(0,8) tc.Parent=tb
-    local tl = Instance.new("TextLabel") tl.Size=UDim2.new(1,0,1,0) tl.BackgroundTransparency=1 tl.Text="🎯 Aim Assist" tl.TextColor3=Color3.white tl.TextScaled=true tl.Font=Enum.Font.SourceSansBold tl.Parent=tb
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local head = player.Character.Head
+            local screenPos, onScreen = Camera:WorldToScreenPoint(head.Position)
+            
+            if onScreen then
+                local distance = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                if distance < fov and distance < shortestDistance then
+                    closest = player
+                    shortestDistance = distance
+                end
+            end
+        end
+    end
     
-    local et = Instance.new("TextButton") et.Size=UDim2.new(1,-20,0,35) et.Position=UDim2.new(0,10,0,35) et.BackgroundColor3=Color3.fromRGB(120,50,50) et.Text="🔴 OFF" et.TextColor3=Color3.white et.TextScaled=true et.Font=Enum.Font.SourceSansBold et.Parent=mf
-    local ec = Instance.new("UICorner") ec.CornerRadius=UDim.new(0,6) ec.Parent=et
+    return closest
+end
+
+-- Aim assist function
+local function aimAt(target)
+    if target and target.Character and target.Character:FindFirstChild("Head") then
+        local targetPosition = target.Character.Head.Position
+        local cameraPosition = Camera.CFrame.Position
+        local direction = (targetPosition - cameraPosition).Unit
+        
+        local targetCFrame = CFrame.lookAt(cameraPosition, cameraPosition + direction)
+        Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, smoothness)
+    end
+end
+
+-- Toggle function
+ToggleButton.MouseButton1Click:Connect(function()
+    enabled = not enabled
     
-    local fl = Instance.new("TextLabel") fl.Size=UDim2.new(1,-20,0,20) fl.Position=UDim2.new(0,10,0,80) fl.BackgroundTransparency=1 fl.Text="FOV: "..S.F fl.TextColor3=Color3.white fl.TextScaled=true fl.Parent=mf
-    local fs = Instance.new("Frame") fs.Size=UDim2.new(1,-20,0,15) fs.Position=UDim2.new(0,10,0,100) fs.BackgroundColor3=Color3.fromRGB(60,60,60) fs.Parent=mf
-    local fsc = Instance.new("UICorner") fsc.CornerRadius=UDim.new(0,8) fsc.Parent=fs
-    local fh = Instance.new("TextButton") fh.Size=UDim2.new(0,15,1,0) fh.Position=UDim2.new(S.F/200,-7,0,0) fh.BackgroundColor3=Color3.fromRGB(100,150,255) fh.Text="" fh.Parent=fs
-    local fhc = Instance.new("UICorner") fhc.CornerRadius=UDim.new(1,0) fhc.Parent=fh
-    
-    local sl = Instance.new("TextLabel") sl.Size=UDim2.new(1,-20,0,20) sl.Position=UDim2.new(0,10,0,125) sl.BackgroundTransparency=1 sl.Text="Smooth: "..S.Sm sl.TextColor3=Color3.white sl.TextScaled=true sl.Parent=mf
-    local ss = Instance.new("Frame") ss.Size=UDim2.new(1,-20,0,15) ss.Position=UDim2.new(0,10,0,145) ss.BackgroundColor3=Color3.fromRGB(60,60,60) ss.Parent=mf
-    local ssc = Instance.new("UICorner") ssc.CornerRadius=UDim.new(0,8) ssc.Parent=ss
-    local sh = Instance.new("TextButton") sh.Size=UDim2.new(0,15,1,0) sh.Position=UDim2.new(S.Sm,-7,0,0) sh.BackgroundColor3=Color3.fromRGB(100,150,255) sh.Text="" sh.Parent=ss
-    local shc = Instance.new("UICorner") shc.CornerRadius=UDim.new(1,0) shc.Parent=sh
-    
-    local ft = Instance.new("TextButton") ft.Size=UDim2.new(1,-20,0,25) ft.Position=UDim2.new(0,10,0,170) ft.BackgroundColor3=Color3.fromRGB(50,120,50) ft.Text="✅ Show FOV" ft.TextColor3=Color3.white ft.TextScaled=true ft.Parent=mf
-    local ftc = Instance.new("UICorner") ftc.CornerRadius=UDim.new(0,6) ftc.Parent=ft
-    
-    et.MouseButton1Click:Connect(function()
-        S.E = not S.E
-        if S.E then et.Text,et.BackgroundColor3="🟢 ON",Color3.fromRGB(50,120,50) SA() else et.Text,et.BackgroundColor3="🔴 OFF",Color3.fromRGB(120,50,50) ST() end
-    end)
-    
-    ft.MouseButton1Click:Connect(function()
-        S.SF = not S.SF
-        if S.SF then ft.Text,ft.BackgroundColor3="✅ Show FOV",Color3.fromRGB(50,120,50) CF() else ft.Text,ft.BackgroundColor3="❌ Hide FOV",Color3.fromRGB(120,50,50) if FOV then FOV:Remove() end end
-    end)
-    
-    local function SS(h,s,min,max,set,lbl,fmt)
-        local d=false
-        h.MouseButton1Down:Connect(function() d=true end)
-        U.InputChanged:Connect(function(i)
-            if d and i.UserInputType==Enum.UserInputType.MouseMovement then
-                local p=math.clamp((M.X-s.AbsolutePosition.X)/s.AbsoluteSize.X,0,1)
-                h.Position=UDim2.new(p,-7,0,0)
-                local v=min+(max-min)*p
-                S[set]=v lbl.Text=fmt:format(v)
-                if set=="F" and FOV then FOV.Radius=v end
+    if enabled then
+        ToggleButton.Text = "Aim Assist: ON"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+        StatusLabel.Text = "Active"
+        
+        connection = RunService.Heartbeat:Connect(function()
+            if enabled then
+                local target = getClosestPlayer()
+                if target then
+                    aimAt(target)
+                end
             end
         end)
-        U.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 then d=false end end)
-    end
-    
-    SS(fh,fs,50,200,"F",fl,"FOV: %.0f")
-    SS(sh,ss,0.1,1,"Sm",sl,"Smooth: %.1f")
-    
-    return sg
-end
-
--- Create FOV Circle
-function CF()
-    if FOV then FOV:Remove() end
-    FOV = Drawing.new("Circle")
-    FOV.Color,FOV.Thickness,FOV.Transparency,FOV.Filled,FOV.Radius,FOV.Visible = Color3.white,2,0.7,false,S.F,S.SF
-end
-
--- Get Closest Player
-function GCP()
-    local cp,sd = nil,math.huge
-    for _,p in pairs(P:GetPlayers()) do
-        if p~=L and p.Character and p.Character:FindFirstChild(S.T) then
-            if S.TC and p.Team==L.Team then continue end
-            local tp=p.Character[S.T]
-            local sp,os=C:WorldToScreenPoint(tp.Position)
-            if os then
-                local d=(Vector2.new(M.X,M.Y)-Vector2.new(sp.X,sp.Y)).Magnitude
-                if d<S.F and d<sd then cp,sd=p,d end
-            end
+    else
+        ToggleButton.Text = "Aim Assist: OFF"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        StatusLabel.Text = "Inactive"
+        
+        if connection then
+            connection:Disconnect()
+            connection = nil
         end
     end
-    return cp
-end
+end)
 
--- Start Aim Assist
-function SA()
-    Con = R.Heartbeat:Connect(function()
-        if S.E then
-            T = GCP()
-            if T and T.Character and T.Character:FindFirstChild(S.T) then
-                local tp,cp = T.Character[S.T].Position,C.CFrame.Position
-                local d = (tp-cp).Unit
-                local tc = CFrame.lookAt(cp,cp+d)
-                C.CFrame = C.CFrame:Lerp(tc,S.Sm)
+-- Cleanup
+game.Players.PlayerRemoving:Connect(function(player)
+    if player == LocalPlayer then
+        if connection then
+            connection:Disconnect()
+        end
+    end
+end)
+
+print("Aim Assist loaded successfully!")
+--]]
+
+-- VERSION 2: Enhanced Version with Error Handling
+local success, error_msg = pcall(function()
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+    local UserInputService = game:GetService("UserInputService")
+    local Camera = workspace.CurrentCamera
+    local LocalPlayer = Players.LocalPlayer
+    
+    -- Wait for character
+    if not LocalPlayer.Character then
+        LocalPlayer.CharacterAdded:Wait()
+    end
+    
+    local Mouse = LocalPlayer:GetMouse()
+    local enabled = false
+    local fov = 80
+    local smoothness = 0.15
+    local connection
+    local fovCircle
+    
+    -- Create FOV Circle (if Drawing is supported)
+    if Drawing then
+        fovCircle = Drawing.new("Circle")
+        fovCircle.Color = Color3.fromRGB(255, 255, 255)
+        fovCircle.Thickness = 2
+        fovCircle.Transparency = 0.8
+        fovCircle.Filled = false
+        fovCircle.Radius = fov
+        fovCircle.Visible = false
+    end
+    
+    -- Enhanced GUI
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "EnhancedAimGUI"
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    ScreenGui.ResetOnSpawn = false
+    
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 280, 0, 180)
+    MainFrame.Position = UDim2.new(0, 50, 0, 50)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Parent = ScreenGui
+    
+    -- Add corner radius
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 8)
+    Corner.Parent = MainFrame
+    
+    -- Title
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 30)
+    Title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    Title.Text = "🎯 Enhanced Aim Assist"
+    Title.TextColor3 = Color3.white
+    Title.TextScaled = true
+    Title.Font = Enum.Font.SourceSansBold
+    Title.Parent = MainFrame
+    
+    local TitleCorner = Instance.new("UICorner")
+    TitleCorner.CornerRadius = UDim.new(0, 8)
+    TitleCorner.Parent = Title
+    
+    -- Toggle Button
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Size = UDim2.new(1, -20, 0, 35)
+    ToggleButton.Position = UDim2.new(0, 10, 0, 40)
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+    ToggleButton.Text = "🔴 Disabled"
+    ToggleButton.TextColor3 = Color3.white
+    ToggleButton.TextScaled = true
+    ToggleButton.Font = Enum.Font.SourceSansBold
+    ToggleButton.Parent = MainFrame
+    
+    local ToggleCorner = Instance.new("UICorner")
+    ToggleCorner.CornerRadius = UDim.new(0, 6)
+    ToggleCorner.Parent = ToggleButton
+    
+    -- FOV Label
+    local FOVLabel = Instance.new("TextLabel")
+    FOVLabel.Size = UDim2.new(1, -20, 0, 25)
+    FOVLabel.Position = UDim2.new(0, 10, 0, 85)
+    FOVLabel.BackgroundTransparency = 1
+    FOVLabel.Text = "FOV: " .. fov
+    FOVLabel.TextColor3 = Color3.white
+    FOVLabel.TextScaled = true
+    FOVLabel.Parent = MainFrame
+    
+    -- Smoothness Label
+    local SmoothLabel = Instance.new("TextLabel")
+    SmoothLabel.Size = UDim2.new(1, -20, 0, 25)
+    SmoothLabel.Position = UDim2.new(0, 10, 0, 115)
+    SmoothLabel.BackgroundTransparency = 1
+    SmoothLabel.Text = "Smoothness: " .. smoothness
+    SmoothLabel.TextColor3 = Color3.white
+    SmoothLabel.TextScaled = true
+    SmoothLabel.Parent = MainFrame
+    
+    -- Status
+    local StatusLabel = Instance.new("TextLabel")
+    StatusLabel.Size = UDim2.new(1, -20, 0, 20)
+    StatusLabel.Position = UDim2.new(0, 10, 0, 145)
+    StatusLabel.BackgroundTransparency = 1
+    StatusLabel.Text = "Status: Ready"
+    StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    StatusLabel.TextScaled = true
+    StatusLabel.Parent = MainFrame
+    
+    -- Get closest player function
+    local function getClosestPlayer()
+        local closest = nil
+        local shortestDistance = math.huge
+        
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local character = player.Character
+                local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+                local head = character:FindFirstChild("Head")
+                
+                if humanoidRootPart and head then
+                    -- Check if player is alive
+                    local humanoid = character:FindFirstChild("Humanoid")
+                    if humanoid and humanoid.Health > 0 then
+                        local screenPos, onScreen = Camera:WorldToScreenPoint(head.Position)
+                        
+                        if onScreen then
+                            local distance = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                            if distance < fov and distance < shortestDistance then
+                                -- Simple wall check
+                                local ray = workspace:Raycast(Camera.CFrame.Position, (head.Position - Camera.CFrame.Position).Unit * (head.Position - Camera.CFrame.Position).Magnitude)
+                                if not ray or ray.Instance:IsDescendantOf(character) then
+                                    closest = player
+                                    shortestDistance = distance
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        return closest
+    end
+    
+    -- Aim function
+    local function aimAtPlayer(target)
+        if target and target.Character and target.Character:FindFirstChild("Head") then
+            local targetPosition = target.Character.Head.Position
+            local cameraPosition = Camera.CFrame.Position
+            local direction = (targetPosition - cameraPosition).Unit
+            
+            local targetCFrame = CFrame.lookAt(cameraPosition, cameraPosition + direction)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, smoothness)
+        end
+    end
+    
+    -- Toggle functionality
+    ToggleButton.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        
+        if enabled then
+            ToggleButton.Text = "🟢 Enabled"
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(50, 180, 50)
+            StatusLabel.Text = "Status: Active"
+            StatusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+            
+            if fovCircle then
+                fovCircle.Visible = true
+            end
+            
+            connection = RunService.Heartbeat:Connect(function()
+                if enabled then
+                    local target = getClosestPlayer()
+                    if target then
+                        aimAtPlayer(target)
+                        StatusLabel.Text = "Status: Targeting " .. target.Name
+                    else
+                        StatusLabel.Text = "Status: Searching..."
+                    end
+                end
+            end)
+        else
+            ToggleButton.Text = "🔴 Disabled"
+            ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+            StatusLabel.Text = "Status: Inactive"
+            StatusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            
+            if fovCircle then
+                fovCircle.Visible = false
+            end
+            
+            if connection then
+                connection:Disconnect()
+                connection = nil
             end
         end
     end)
-end
-
--- Stop Aim Assist
-function ST()
-    if Con then Con:Disconnect() Con=nil end
-    T=nil
-end
-
--- Update FOV
-R.Heartbeat:Connect(function()
-    if FOV then FOV.Position,FOV.Visible = Vector2.new(M.X,M.Y),S.SF end
+    
+    -- Update FOV circle position
+    if fovCircle then
+        RunService.Heartbeat:Connect(function()
+            if fovCircle then
+                fovCircle.Position = Vector2.new(Mouse.X, Mouse.Y)
+                fovCircle.Radius = fov
+            end
+        end)
+    end
+    
+    -- Keybind (Toggle with T key)
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.T then
+            ToggleButton.MouseButton1Click:Fire()
+        end
+    end)
+    
+    -- Make GUI draggable
+    local dragging = false
+    local dragStart = nil
+    local startPos = nil
+    
+    Title.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    -- Cleanup
+    game.Players.PlayerRemoving:Connect(function(player)
+        if player == LocalPlayer then
+            if connection then
+                connection:Disconnect()
+            end
+            if fovCircle then
+                fovCircle:Remove()
+            end
+        end
+    end)
+    
+    -- Success notification
+    if game:GetService("StarterGui") then
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Aim Assist";
+            Text = "Loaded successfully! Press T to toggle.";
+            Duration = 5;
+        })
+    end
+    
+    print("✅ Enhanced Aim Assist loaded successfully!")
+    print("🎯 Press T to toggle or use the GUI button")
+    print("🔧 Features: Auto-aim, FOV circle, Wall check")
 end)
 
--- Initialize
-G = CG()
-CF()
-game:GetService("StarterGui"):SetCore("SendNotification",{Title="Aim Assist";Text="Loaded Successfully!";Duration=3})
+if not success then
+    warn("❌ Error loading Aim Assist: " .. tostring(error_msg))
+    print("💡 Try using Version 1 (uncomment the first version)")
+end
